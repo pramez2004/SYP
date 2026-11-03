@@ -1,0 +1,19 @@
+# Docker Compose for Chaad Baad development services
+# Run: docker compose up -d
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: chaadbaad_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chaadbaad
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
