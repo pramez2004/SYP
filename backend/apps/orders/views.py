@@ -10,6 +10,7 @@ from .serializers import (
     CartItemSerializer, CartItemCreateSerializer,
     CheckoutSerializer,
 )
+from apps.authentication.permissions import IsSeller
 
 
 class CartViewSet(viewsets.GenericViewSet):
@@ -164,7 +165,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             return OrderDetailSerializer
         return OrderListSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsSeller])
     def update_status(self, request, pk=None):
         """
         POST /api/orders/{id}/update_status/

@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -8,6 +9,7 @@ from .serializers import (
     CategorySerializer, ShopListSerializer, ShopDetailSerializer,
     ProductSerializer, ProductCreateSerializer,
 )
+from apps.authentication.permissions import IsSeller, IsShopOwner
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -69,23 +71,16 @@ class ProductViewSet(viewsets.ModelViewSet):
         return ProductSerializer
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [permissions.IsAuthenticated()]
+        if self.action in ('create',):
+            # Only authenticated sellers can create products
+            return [permissions.IsAuthenticated(), IsSeller()]
+        if self.action in ('update', 'partial_update', 'destroy'):
+            # Only authenticated sellers who own the shop can modify/delete
+            return [permissions.IsAuthenticated(), IsSeller(), IsShopOwner()]
         return [permissions.AllowAny()]
 
     def perform_create(self, serializer):
         shop = self.request.user.shops.first()
+        if not shop:
+            raise PermissionDenied('You must have a shop to create products.')
         serializer.save(shop=shop)
-
-    def perform_update(self, serializer):
-        # Ensure only the shop owner can update
-        if serializer.instance.shop.owner != self.request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('You can only edit your own products.')
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        if instance.shop.owner != self.request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('You can only delete your own products.')
-        instance.delete()
