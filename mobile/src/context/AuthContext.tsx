@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { API_BASE_URL, API_ENDPOINTS } from '../constants/config';
+import apiClient from '../services/apiClient';
+import { API_ENDPOINTS } from '../constants/config';
 
-interface User {
+export interface User {
   id: number;
   username: string;
   email: string;
@@ -17,18 +17,7 @@ interface User {
   preferred_language: string;
 }
 
-interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
-  logout: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;
-  changePassword: (oldPassword: string, newPassword: string, newPassword2: string) => Promise<void>;
-}
-
-interface RegisterData {
+export interface RegisterData {
   username: string;
   email: string;
   password: string;
@@ -38,6 +27,18 @@ interface RegisterData {
   phone_number: string;
   role: 'customer' | 'seller';
   city: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (username: string, password: string) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
+  logout: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
+  changePassword: (oldPassword: string, newPassword: string, newPassword2: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,22 +55,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await AsyncStorage.getItem('access_token');
       if (token) {
-        const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.PROFILE}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await apiClient.get(API_ENDPOINTS.PROFILE);
         setUser(response.data);
       }
     } catch (error) {
       // Token expired or invalid
       await AsyncStorage.removeItem('access_token');
       await AsyncStorage.removeItem('refresh_token');
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   const login = async (username: string, password: string) => {
-    const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.TOKEN}`, {
+    const response = await apiClient.post(API_ENDPOINTS.TOKEN, {
       username,
       password,
     });
@@ -79,25 +79,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (data: RegisterData) => {
-    await axios.post(`${API_BASE_URL}${API_ENDPOINTS.REGISTER}`, data);
+    await apiClient.post(API_ENDPOINTS.REGISTER, data);
     // Auto-login after registration
     await login(data.username, data.password);
   };
 
   const logout = async () => {
     try {
-      const accessToken = await AsyncStorage.getItem('access_token');
       const refreshToken = await AsyncStorage.getItem('refresh_token');
-      if (refreshToken && accessToken) {
-        // Blacklist the refresh token on the server
-        await axios.post(
-          `${API_BASE_URL}${API_ENDPOINTS.LOGOUT}`,
-          { refresh: refreshToken },
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
+      if (refreshToken) {
+        // Blacklist refresh token server-side
+        await apiClient.post(API_ENDPOINTS.LOGOUT, { refresh: refreshToken });
       }
     } catch (error) {
-      // Even if the server call fails, clear local tokens
+      // Ignore network errors on logout, proceed with clearing local storage
     } finally {
       await AsyncStorage.removeItem('access_token');
       await AsyncStorage.removeItem('refresh_token');
@@ -106,24 +101,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updateProfile = async (data: Partial<User>) => {
-    const token = await AsyncStorage.getItem('access_token');
-    const response = await axios.patch(`${API_BASE_URL}${API_ENDPOINTS.PROFILE}`, data, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await apiClient.patch(API_ENDPOINTS.PROFILE, data);
     setUser(response.data);
   };
 
   const changePassword = async (oldPassword: string, newPassword: string, newPassword2: string) => {
-    const token = await AsyncStorage.getItem('access_token');
-    await axios.post(
-      `${API_BASE_URL}${API_ENDPOINTS.CHANGE_PASSWORD}`,
-      {
-        old_password: oldPassword,
-        new_password: newPassword,
-        new_password2: newPassword2,
-      },
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    await apiClient.post(API_ENDPOINTS.CHANGE_PASSWORD, {
+      old_password: oldPassword,
+      new_password: newPassword,
+      new_password2: newPassword2,
+    });
+  };
+
+  const refreshProfile = async () => {
+    await loadUser();
   };
 
   return (
@@ -137,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         updateProfile,
         changePassword,
+        refreshProfile,
       }}
     >
       {children}

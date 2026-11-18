@@ -1,10 +1,16 @@
 /**
  * API Configuration for Chaad Baad (चाडबाड)
+ *
+ * NOTE FOR TESTING:
+ * - On iOS Simulator / Web: 'http://localhost:8000' works.
+ * - On Android Emulator: use 'http://10.0.2.2:8000' to reach host machine localhost.
+ * - On a Physical Phone (Expo Go): use your machine's local LAN IP
+ *   (e.g., 'http://192.168.1.100:8000').
+ *
+ * Configure via EXPO_PUBLIC_API_URL in a .env file or fallback to localhost:8000.
  */
-
-// Change this to your machine's local IP when testing on a physical device
-// e.g., 'http://192.168.1.100:8000'
-export const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
 export const API_ENDPOINTS = {
   // Auth
