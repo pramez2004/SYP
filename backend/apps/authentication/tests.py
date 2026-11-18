@@ -226,3 +226,89 @@ class AuthenticationTests(APITestCase):
             'password': 'OldPassword123!',
         })
         self.assertEqual(old_login.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class RoleBasedAccessTests(APITestCase):
+    """Role-based access control: customer, seller and admin."""
+
+    def setUp(self):
+        self.customer = User.objects.create_user(
+            username='cust', email='cust@example.com', password='Fest!val2083x', role='customer')
+        self.seller = User.objects.create_user(
+            username='sell', email='sell@example.com', password='Fest!val2083x', role='seller')
+        self.admin = User.objects.create_user(
+            username='boss', email='boss@example.com', password='Fest!val2083x', role='admin')
+
+    def _as(self, user):
+        self.client.force_authenticate(user=user)
+
+    def test_anonymous_is_rejected(self):
+        for name in ('authentication:user-list', 'authentication:my-permissions',
+                     'authentication:demo-customer'):
+            self.assertEqual(self.client.get(reverse(name)).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_demo_areas_allow_only_matching_role(self):
+        matrix = {
+            'authentication:demo-customer': {self.customer: 200, self.seller: 403, self.admin: 403},
+            'authentication:demo-seller': {self.customer: 403, self.seller: 200, self.admin: 403},
+            'authentication:demo-admin': {self.customer: 403, self.seller: 403, self.admin: 200},
+        }
+        for url_name, expectations in matrix.items():
+            for user, expected in expectations.items():
+                self._as(user)
+                response = self.client.get(reverse(url_name))
+                self.assertEqual(response.status_code, expected, f'{url_name} as {user.role}')
+
+    def test_my_permissions_reports_role_and_permissions(self):
+        self._as(self.customer)
+        data = self.client.get(reverse('authentication:my-permissions')).json()
+        self.assertEqual(data['role'], 'customer')
+        self.assertNotIn('users.list', data['permissions'])
+        self._as(self.admin)
+        data = self.client.get(reverse('authentication:my-permissions')).json()
+        self.assertIn('users.change_role', data['permissions'])
+
+    def test_only_admin_can_list_and_view_users(self):
+        self._as(self.customer)
+        self.assertEqual(self.client.get(reverse('authentication:user-list')).status_code, 403)
+        self._as(self.seller)
+        self.assertEqual(
+            self.client.get(reverse('authentication:user-detail', args=[self.customer.pk])).status_code, 403)
+        self._as(self.admin)
+        response = self.client.get(reverse('authentication:user-list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 3)
+
+    def test_admin_can_change_role_and_deactivate_user(self):
+        self._as(self.admin)
+        url = reverse('authentication:user-detail', args=[self.customer.pk])
+        response = self.client.patch(url, {'role': 'seller'}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.role, 'seller')
+
+        response = self.client.patch(url, {'is_active': False}, format='json')
+        self.assertEqual(response.status_code, 200)
+        # a deactivated user can no longer log in
+        self.client.force_authenticate(user=None)
+        login = self.client.post(reverse('token_obtain_pair'),
+                                 {'username': 'cust', 'password': 'Fest!val2083x'}, format='json')
+        self.assertEqual(login.status_code, 401)
+
+    def test_admin_cannot_change_own_role_or_status(self):
+        self._as(self.admin)
+        url = reverse('authentication:user-detail', args=[self.admin.pk])
+        self.assertEqual(self.client.patch(url, {'role': 'customer'}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(url, {'is_active': False}, format='json').status_code, 400)
+
+    def test_admin_cannot_edit_other_user_fields(self):
+        self._as(self.admin)
+        url = reverse('authentication:user-detail', args=[self.customer.pk])
+        self.client.patch(url, {'email': 'hacked@example.com', 'username': 'hacked'}, format='json')
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.email, 'cust@example.com')
+        self.assertEqual(self.customer.username, 'cust')
+
+    def test_superuser_gets_admin_role(self):
+        su = User.objects.create_superuser(username='root', email='root@example.com', password='Fest!val2083x')
+        self.assertEqual(su.role, 'admin')

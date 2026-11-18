@@ -15,7 +15,9 @@ from django.conf import settings
 from .serializers import (
     RegisterSerializer, UserProfileSerializer, ChangePasswordSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
+    AdminUserSerializer,
 )
+from .permissions import IsAdminUser, IsCustomer, IsSeller, ROLE_PERMISSIONS
 
 User = get_user_model()
 
@@ -193,3 +195,63 @@ class PasswordResetConfirmView(APIView):
             {'message': 'Password has been reset successfully.'},
             status=status.HTTP_200_OK,
         )
+
+
+# ---------------------------------------------------------------------------
+# Role-based access control
+# ---------------------------------------------------------------------------
+
+class MyPermissionsView(APIView):
+    """GET /api/auth/permissions/ - the logged-in user's role and permissions."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            'role': request.user.role,
+            'permissions': ROLE_PERMISSIONS.get(request.user.role, []),
+        })
+
+
+class UserListView(generics.ListAPIView):
+    """GET /api/auth/users/ - list all users (admin only)."""
+
+    queryset = User.objects.all().order_by('id')
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAdminUser]
+
+
+class UserDetailView(generics.RetrieveUpdateAPIView):
+    """
+    GET   /api/auth/users/{id}/ - view a user (admin only)
+    PATCH /api/auth/users/{id}/ - change role or activate/deactivate (admin only)
+    """
+
+    queryset = User.objects.all()
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+
+class _AreaView(APIView):
+    """Demo endpoint used to prove role checks work (returns 403 for other roles)."""
+
+    area = ''
+
+    def get(self, request):
+        return Response({'message': f'Welcome to the {self.area} area.', 'role': request.user.role})
+
+
+class CustomerAreaView(_AreaView):
+    permission_classes = [IsCustomer]
+    area = 'customer'
+
+
+class SellerAreaView(_AreaView):
+    permission_classes = [IsSeller]
+    area = 'seller'
+
+
+class AdminAreaView(_AreaView):
+    permission_classes = [IsAdminUser]
+    area = 'admin'

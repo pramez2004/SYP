@@ -123,3 +123,27 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.username
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Admin view of a user. Admins may change only role and is_active."""
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'phone_number', 'city', 'role', 'is_active', 'date_joined',
+        ]
+        read_only_fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'phone_number', 'city', 'date_joined',
+        ]
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if self.instance and request and self.instance.pk == request.user.pk:
+            if 'role' in attrs or 'is_active' in attrs:
+                raise serializers.ValidationError(
+                    'Admins cannot change their own role or active status.'
+                )
+        return attrs
