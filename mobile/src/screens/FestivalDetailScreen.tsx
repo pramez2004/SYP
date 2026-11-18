@@ -79,7 +79,7 @@ export default function FestivalDetailScreen({ route, navigation }: any) {
     if (!item.product_id) return;
 
     if (!isAuthenticated) {
-      Alert.alert(t.auth.login, 'Please log in to add items to your cart.', [
+      Alert.alert(t.auth.login, t.marketplace.loginToAdd, [
         { text: t.common.cancel },
         { text: t.auth.login, onPress: () => navigation.navigate('Login') },
       ]);
@@ -95,7 +95,7 @@ export default function FestivalDetailScreen({ route, navigation }: any) {
       setAddedItems((prev) => ({ ...prev, [item.product_id!]: true }));
       Alert.alert(t.common.success, `${language === 'ne' ? item.name_ne : item.name_en} ${t.marketplace.addedToCart}`);
     } catch (e) {
-      Alert.alert(t.common.error, 'Failed to add item to cart.');
+      Alert.alert(t.common.error, t.marketplace.addToCartFailed);
     } finally {
       setAddingId(null);
     }
@@ -176,12 +176,12 @@ export default function FestivalDetailScreen({ route, navigation }: any) {
                     <Text style={styles.checkItemName}>{itemName}</Text>
                     {item.is_essential ? (
                       <View style={styles.essentialChip}>
-                        <Text style={styles.essentialText}>Essential</Text>
+                        <Text style={styles.essentialText}>{t.festivals.essential}</Text>
                       </View>
                     ) : null}
                   </View>
                   {item.quantity ? (
-                    <Text style={styles.checkItemQty}>Qty: {item.quantity}</Text>
+                    <Text style={styles.checkItemQty}>{t.marketplace.quantity}: {item.quantity}</Text>
                   ) : null}
                   {item.product_price ? (
                     <Text style={styles.productPriceText}>Rs. {item.product_price}</Text>
@@ -199,7 +199,7 @@ export default function FestivalDetailScreen({ route, navigation }: any) {
                       <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
                     ) : (
                       <Text style={styles.addToCartBtnText}>
-                        {isAdded ? '✓ Added' : `+ ${t.marketplace.addToCart}`}
+                        {isAdded ? `✓ ${t.marketplace.added}` : `+ ${t.marketplace.addToCart}`}
                       </Text>
                     )}
                   </TouchableOpacity>

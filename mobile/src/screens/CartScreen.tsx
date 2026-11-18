@@ -75,13 +75,13 @@ export default function CartScreen({ navigation }: any) {
       await apiClient.delete(`${API_ENDPOINTS.CART}${itemId}/`);
       loadCart();
     } catch (e) {
-      Alert.alert(t.common.error, 'Could not remove item.');
+      Alert.alert(t.common.error, t.cart.removeFailed);
     }
   };
 
   const handleCheckout = async () => {
     if (!deliveryCity || !deliveryAddress.trim() || !deliveryPhone.trim()) {
-      Alert.alert(t.common.error, 'Please fill in delivery city, address, and contact phone.');
+      Alert.alert(t.common.error, t.cart.validationError);
       return;
     }
 
@@ -97,7 +97,7 @@ export default function CartScreen({ navigation }: any) {
       Alert.alert(
         t.common.success,
         t.cart.orderSuccess,
-        [{ text: 'OK', onPress: () => navigation.navigate('Orders') }]
+        [{ text: t.common.ok, onPress: () => navigation.navigate('Orders') }]
       );
       loadCart();
     } catch (error: any) {
@@ -112,7 +112,7 @@ export default function CartScreen({ navigation }: any) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.emptyTitle}>{t.cart.title}</Text>
-        <Text style={styles.emptySubtitle}>Please log in to view your cart.</Text>
+        <Text style={styles.emptySubtitle}>{t.cart.loginToView}</Text>
         <TouchableOpacity
           style={styles.primaryBtn}
           onPress={() => navigation.navigate('Login')}
@@ -164,7 +164,7 @@ export default function CartScreen({ navigation }: any) {
         {/* Cart Item Cards */}
         {items.map((item) => {
           const detail = item.product_detail;
-          const prodName = detail ? (language === 'ne' ? detail.name_ne : detail.name_en) : 'Product';
+          const prodName = detail ? (language === 'ne' ? detail.name_ne : detail.name_en) : t.marketplace.product;
           return (
             <View key={item.id} style={styles.itemCard}>
               <View style={styles.itemLeft}>
@@ -235,7 +235,7 @@ export default function CartScreen({ navigation }: any) {
           <Text style={styles.inputLabel}>{t.cart.deliveryAddress} *</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. Purano Buspark, Damak-5"
+            placeholder={t.cart.addressPlaceholder}
             placeholderTextColor={COLORS.textMuted}
             value={deliveryAddress}
             onChangeText={setDeliveryAddress}
@@ -254,7 +254,7 @@ export default function CartScreen({ navigation }: any) {
           <Text style={styles.inputLabel}>{t.cart.customerNote}</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Optional instructions for delivery"
+            placeholder={t.cart.notePlaceholder}
             placeholderTextColor={COLORS.textMuted}
             value={customerNote}
             onChangeText={setCustomerNote}

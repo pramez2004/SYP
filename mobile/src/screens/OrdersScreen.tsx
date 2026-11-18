@@ -89,7 +89,7 @@ export default function OrdersScreen({ navigation }: any) {
             Alert.alert(t.common.success, t.orders.cancelOrderSuccess);
             loadOrders();
           } catch (e: any) {
-            const detail = e.response?.data?.detail || 'Failed to cancel order.';
+            const detail = e.response?.data?.detail || t.orders.cancelFailed;
             Alert.alert(t.common.error, detail);
           } finally {
             setCancellingId(null);
@@ -115,9 +115,7 @@ export default function OrdersScreen({ navigation }: any) {
     return (
       <View style={styles.centeredContainer}>
         <Text style={styles.emptyEmoji}>🔒</Text>
-        <Text style={styles.emptyText}>
-          {language === 'ne' ? 'कृपया लग इन गर्नुहोस्' : 'Please log in to view your orders'}
-        </Text>
+        <Text style={styles.emptyText}>{t.orders.loginToView}</Text>
         <TouchableOpacity
           style={styles.loginButton}
           onPress={() => navigation.navigate('Login')}
@@ -153,16 +151,12 @@ export default function OrdersScreen({ navigation }: any) {
       ) : orders.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyEmoji}>📦</Text>
-          <Text style={styles.emptyText}>
-            {language === 'ne' ? 'कुनै अर्डर छैन' : 'No orders yet'}
-          </Text>
+          <Text style={styles.emptyText}>{t.orders.noOrders}</Text>
           <TouchableOpacity
             style={styles.shopButton}
             onPress={() => navigation.navigate('Marketplace')}
           >
-            <Text style={styles.shopButtonText}>
-              {language === 'ne' ? 'बजार हेर्नुहोस्' : 'Browse Marketplace'}
-            </Text>
+            <Text style={styles.shopButtonText}>{t.orders.browseMarketplace}</Text>
           </TouchableOpacity>
         </View>
       ) : (

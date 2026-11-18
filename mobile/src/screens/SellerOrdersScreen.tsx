@@ -104,7 +104,7 @@ export default function SellerOrdersScreen() {
   const handleUpdateStatus = (orderId: number, newStatus: string, label: string) => {
     Alert.alert(
       t.orders.updateStatus,
-      `Change order #${orderId} status to "${label}"?`,
+      `${t.seller.confirmStatusChange} #${orderId} -> "${label}"?`,
       [
         { text: t.common.cancel, style: 'cancel' },
         {
@@ -118,7 +118,7 @@ export default function SellerOrdersScreen() {
               Alert.alert(t.common.success, t.seller.statusUpdated);
               loadOrders();
             } catch (error: any) {
-              const detail = error.response?.data?.detail || 'Failed to update order status.';
+              const detail = error.response?.data?.detail || t.seller.updateStatusFailed;
               Alert.alert(t.common.error, detail);
             } finally {
               setUpdatingId(null);
@@ -166,23 +166,23 @@ export default function SellerOrdersScreen() {
               </View>
 
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>👤 Customer:</Text>
-                <Text style={styles.detailValue}>{order.customer_name || 'Customer'}</Text>
+                <Text style={styles.detailLabel}>👤 {t.seller.customer}:</Text>
+                <Text style={styles.detailValue}>{order.customer_name || t.seller.customer}</Text>
               </View>
 
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>📞 Phone:</Text>
+                <Text style={styles.detailLabel}>📞 {t.seller.phone}:</Text>
                 <Text style={styles.detailValue}>{order.delivery_phone}</Text>
               </View>
 
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>📍 Delivery Address:</Text>
+                <Text style={styles.detailLabel}>📍 {t.seller.deliveryAddress}:</Text>
                 <Text style={styles.detailValue}>{order.delivery_address}, {order.delivery_city}</Text>
               </View>
 
               {order.customer_note ? (
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>📝 Note:</Text>
+                  <Text style={styles.detailLabel}>📝 {t.seller.note}:</Text>
                   <Text style={styles.detailValue}>{order.customer_note}</Text>
                 </View>
               ) : null}
@@ -199,9 +199,9 @@ export default function SellerOrdersScreen() {
               ) : null}
 
               <View style={styles.totalRow}>
-                <Text style={styles.totalText}>Total: Rs. {order.total}</Text>
+                <Text style={styles.totalText}>{t.cart.total}: Rs. {order.total}</Text>
                 <Text style={[styles.paidText, { color: order.is_paid ? COLORS.success : COLORS.warning }]}>
-                  {order.is_paid ? '✓ Paid (COD)' : 'Unpaid (COD)'}
+                  {order.is_paid ? t.orders.paidCod : t.orders.unpaidCod}
                 </Text>
               </View>
 
@@ -223,7 +223,7 @@ export default function SellerOrdersScreen() {
                   </View>
                 </View>
               ) : (
-                <Text style={styles.terminalStateText}>Order is in terminal state ({order.status}).</Text>
+                <Text style={styles.terminalStateText}>{t.seller.terminalState} ({order.status}).</Text>
               )}
             </View>
           );

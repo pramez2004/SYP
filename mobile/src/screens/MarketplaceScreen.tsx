@@ -80,7 +80,7 @@ export default function MarketplaceScreen({ navigation }: any) {
 
   const handleAddToCart = async (product: Product) => {
     if (!isAuthenticated) {
-      Alert.alert(t.auth.login, 'Please log in to add items to your cart.', [
+      Alert.alert(t.auth.login, t.marketplace.loginToAdd, [
         { text: t.common.cancel },
         { text: t.auth.login, onPress: () => navigation.navigate('Login') },
       ]);
@@ -93,7 +93,7 @@ export default function MarketplaceScreen({ navigation }: any) {
       });
       Alert.alert(t.common.success, `${getName(product)} ${t.marketplace.addedToCart}`);
     } catch (e: any) {
-      const msg = e.response?.data?.detail || 'Failed to add item to cart.';
+      const msg = e.response?.data?.detail || t.marketplace.addToCartFailed;
       Alert.alert(t.common.error, msg);
     }
   };
@@ -107,9 +107,7 @@ export default function MarketplaceScreen({ navigation }: any) {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>{t.marketplace.products}</Text>
-          <Text style={styles.subtitle}>
-            {language === 'ne' ? 'प्रमाणित पसलहरूबाट पूजा सामान' : 'Puja items from verified shops'}
-          </Text>
+          <Text style={styles.subtitle}>{t.marketplace.subtitle}</Text>
         </View>
         <TouchableOpacity
           style={styles.cartBtn}
@@ -164,9 +162,7 @@ export default function MarketplaceScreen({ navigation }: any) {
         ) : products.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🛒</Text>
-            <Text style={styles.emptyText}>
-              {language === 'ne' ? 'कुनै सामान भेटिएन' : 'No products found'}
-            </Text>
+            <Text style={styles.emptyText}>{t.marketplace.noProducts}</Text>
           </View>
         ) : (
           <View style={styles.productsGrid}>

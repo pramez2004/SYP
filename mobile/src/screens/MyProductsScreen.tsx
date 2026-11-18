@@ -98,7 +98,7 @@ export default function MyProductsScreen() {
 
   const handleSaveProduct = async () => {
     if (!nameEn.trim() || !price.trim()) {
-      Alert.alert(t.common.error, 'Please provide product name and regular price.');
+      Alert.alert(t.common.error, t.seller.fillProductRequired);
       return;
     }
 
@@ -116,10 +116,10 @@ export default function MyProductsScreen() {
 
       if (editingId) {
         await apiClient.patch(`${API_ENDPOINTS.PRODUCTS}${editingId}/`, payload);
-        Alert.alert(t.common.success, 'Product updated successfully!');
+        Alert.alert(t.common.success, t.seller.productUpdated);
       } else {
         await apiClient.post(API_ENDPOINTS.PRODUCTS, payload);
-        Alert.alert(t.common.success, 'Product created successfully!');
+        Alert.alert(t.common.success, t.seller.productCreated);
       }
       setModalVisible(false);
       loadProductsAndCategories();
@@ -128,7 +128,7 @@ export default function MyProductsScreen() {
         error.response?.data?.detail ||
         (typeof error.response?.data === 'object'
           ? Object.values(error.response.data)[0]
-          : 'Failed to save product.');
+          : t.seller.saveProductFailed);
       Alert.alert(t.common.error, String(detail));
     } finally {
       setSaving(false);
@@ -146,7 +146,7 @@ export default function MyProductsScreen() {
             await apiClient.delete(`${API_ENDPOINTS.PRODUCTS}${id}/`);
             loadProductsAndCategories();
           } catch (e: any) {
-            const detail = e.response?.data?.detail || 'Failed to delete product.';
+            const detail = e.response?.data?.detail || t.seller.deleteProductFailed;
             Alert.alert(t.common.error, detail);
           }
         },
@@ -177,10 +177,8 @@ export default function MyProductsScreen() {
         {products.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyEmoji}>📦</Text>
-            <Text style={styles.emptyText}>No products listed yet.</Text>
-            <Text style={styles.emptySubtext}>
-              Tap '+ Add New Product' to list your puja items. Note: Your shop must be verified by an admin.
-            </Text>
+            <Text style={styles.emptyText}>{t.seller.noProductsListed}</Text>
+            <Text style={styles.emptySubtext}>{t.seller.noProductsSubtext}</Text>
           </View>
         ) : (
           products.map((p) => {
@@ -226,7 +224,7 @@ export default function MyProductsScreen() {
               <Text style={styles.label}>{t.seller.productNameEn} *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. Brass Puja Thali"
+                placeholder={t.seller.productNamePlaceholder}
                 placeholderTextColor={COLORS.textMuted}
                 value={nameEn}
                 onChangeText={setNameEn}

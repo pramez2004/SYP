@@ -54,7 +54,7 @@ export default function ProfileScreen({ navigation }: any) {
         error.response?.data?.old_password?.[0] ||
         error.response?.data?.new_password?.[0] ||
         error.response?.data?.detail ||
-        'Failed to change password.';
+        t.auth.changePasswordFailed;
       setPassError(detail);
     } finally {
       setChangingPass(false);
@@ -62,7 +62,7 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const handleLogout = async () => {
-    Alert.alert(t.auth.logout, 'Are you sure you want to log out?', [
+    Alert.alert(t.auth.logout, t.auth.logoutConfirm, [
       { text: t.common.cancel, style: 'cancel' },
       {
         text: t.auth.logout,
@@ -105,7 +105,7 @@ export default function ProfileScreen({ navigation }: any) {
       {/* Seller Portal Quick Actions (Seller Only) */}
       {isSeller ? (
         <View style={styles.card}>
-          <Text style={styles.sectionHeader}>🏪 Seller Dashboard</Text>
+          <Text style={styles.sectionHeader}>🏪 {t.seller.sellerDashboard}</Text>
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => navigation.navigate('MyShop')}

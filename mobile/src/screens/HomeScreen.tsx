@@ -100,9 +100,7 @@ export default function HomeScreen({ navigation }: any) {
         ) : upcomingFestivals.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🎪</Text>
-            <Text style={styles.emptyText}>
-              {language === 'ne' ? 'कुनै आगामी चाडपर्व छैन' : 'No upcoming festivals'}
-            </Text>
+            <Text style={styles.emptyText}>{t.festivals.noUpcoming}</Text>
           </View>
         ) : (
           upcomingFestivals.map((festival) => (
@@ -125,9 +123,7 @@ export default function HomeScreen({ navigation }: any) {
               </View>
               <View style={styles.daysUntil}>
                 <Text style={styles.daysNumber}>{festival.days_until}</Text>
-                <Text style={styles.daysLabel}>
-                  {language === 'ne' ? 'दिन' : 'days'}
-                </Text>
+                <Text style={styles.daysLabel}>{t.festivals.days}</Text>
               </View>
             </TouchableOpacity>
           ))
@@ -136,9 +132,7 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* Quick Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          {language === 'ne' ? 'छिटो पहुँच' : 'Quick Access'}
-        </Text>
+        <Text style={styles.sectionTitle}>{t.common.quickAccess}</Text>
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickAction}

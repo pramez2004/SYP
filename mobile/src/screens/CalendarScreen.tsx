@@ -107,7 +107,7 @@ export default function CalendarScreen({ navigation }: any) {
                       {f.is_national_holiday && (
                         <View style={styles.badge}>
                           <Text style={styles.badgeText}>
-                            {language === 'ne' ? '🏳️ सार्वजनिक बिदा' : '🏳️ Holiday'}
+                            🏳️ {t.festivals.holiday}
                           </Text>
                         </View>
                       )}

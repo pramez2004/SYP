@@ -71,7 +71,7 @@ export default function MyShopScreen() {
 
   const handleSave = async () => {
     if (!name.trim() || !phone.trim() || !city) {
-      Alert.alert(t.common.error, 'Please fill in shop name, contact phone, and city.');
+      Alert.alert(t.common.error, t.seller.fillShopRequired);
       return;
     }
 
@@ -89,18 +89,18 @@ export default function MyShopScreen() {
         // Update existing shop
         const res = await apiClient.patch(`${API_ENDPOINTS.SHOPS}${shop.id}/`, payload);
         setShop(res.data);
-        Alert.alert(t.common.success, 'Shop updated successfully!');
+        Alert.alert(t.common.success, t.seller.shopUpdated);
       } else {
         // Create new shop
         const res = await apiClient.post(API_ENDPOINTS.SHOPS, payload);
         setShop(res.data);
         Alert.alert(
           t.common.success,
-          'Shop registered! An admin will review and verify your shop shortly.'
+          t.seller.shopRegistered
         );
       }
     } catch (error: any) {
-      const detail = error.response?.data?.detail || 'Failed to save shop.';
+      const detail = error.response?.data?.detail || t.seller.saveShopFailed;
       Alert.alert(t.common.error, detail);
     } finally {
       setSaving(false);
@@ -149,7 +149,7 @@ export default function MyShopScreen() {
         <Text style={styles.label}>{t.seller.shopName} *</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. Mandala Puja Store"
+          placeholder={t.seller.shopNamePlaceholder}
           placeholderTextColor={COLORS.textMuted}
           value={name}
           onChangeText={setName}
@@ -188,7 +188,7 @@ export default function MyShopScreen() {
         <Text style={styles.label}>{t.seller.shopAddress}</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. Ward 4, Golchha Chowk"
+          placeholder={t.seller.shopAddressPlaceholder}
           placeholderTextColor={COLORS.textMuted}
           value={address}
           onChangeText={setAddress}
@@ -197,7 +197,7 @@ export default function MyShopScreen() {
         <Text style={styles.label}>{t.seller.shopDesc}</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
-          placeholder="Specializing in authentic puja essentials..."
+          placeholder={t.seller.shopDescPlaceholder}
           placeholderTextColor={COLORS.textMuted}
           value={description}
           onChangeText={setDescription}

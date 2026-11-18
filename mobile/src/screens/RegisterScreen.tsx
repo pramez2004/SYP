@@ -143,7 +143,7 @@ export default function RegisterScreen({ navigation }: any) {
             <Text style={styles.label}>{t.auth.email} *</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. puja@gmail.com"
+              placeholder={t.auth.emailPlaceholder}
               placeholderTextColor={COLORS.textMuted}
               value={email}
               onChangeText={setEmail}
