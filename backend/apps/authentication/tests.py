@@ -226,3 +226,32 @@ class AuthenticationTests(APITestCase):
             'password': 'OldPassword123!',
         })
         self.assertEqual(old_login.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_login_throttling_triggers_429(self):
+        """Verify that exceeding the login throttle rate returns 429 Too Many Requests."""
+        from rest_framework.throttling import SimpleRateThrottle
+        from rest_framework.settings import api_settings
+        from django.core.cache import cache
+        from django.conf import settings
+
+        new_rates = {**settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'], 'login': '2/minute'}
+        with self.settings(REST_FRAMEWORK={**settings.REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': new_rates}):
+            api_settings.reload()
+            SimpleRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
+            cache.clear()
+            try:
+                # 1st attempt: 401 (invalid credentials, request counted)
+                res1 = self.client.post(self.login_url, {'username': 'test_throttle', 'password': 'wrong'})
+                self.assertEqual(res1.status_code, status.HTTP_401_UNAUTHORIZED)
+
+                # 2nd attempt: 401
+                res2 = self.client.post(self.login_url, {'username': 'test_throttle', 'password': 'wrong'})
+                self.assertEqual(res2.status_code, status.HTTP_401_UNAUTHORIZED)
+
+                # 3rd attempt exceeds 2/minute -> 429 Too Many Requests
+                res3 = self.client.post(self.login_url, {'username': 'test_throttle', 'password': 'wrong'})
+                self.assertEqual(res3.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+            finally:
+                cache.clear()
+                api_settings.reload()
+                SimpleRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
