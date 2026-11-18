@@ -12,6 +12,12 @@ User = get_user_model()
 
 class AuthenticationTests(APITestCase):
     def setUp(self):
+        from django.core.cache import cache
+        from rest_framework.settings import api_settings
+        from rest_framework.throttling import SimpleRateThrottle
+        cache.clear()
+        api_settings.reload()
+        SimpleRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
         self.register_url = reverse('authentication:register')
         self.login_url = reverse('token_obtain_pair')
         self.refresh_url = reverse('token_refresh')
@@ -139,6 +145,10 @@ class AuthenticationTests(APITestCase):
         })
         self.assertEqual(good_change.status_code, status.HTTP_200_OK)
 
+        # 4b. Verify that outstanding refresh tokens from before change-password are now blacklisted
+        stale_refresh_res = self.client.post(self.refresh_url, {'refresh': refresh_token})
+        self.assertIn(stale_refresh_res.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_401_UNAUTHORIZED])
+
         # 5. Login with new password succeeds
         new_login = self.client.post(self.login_url, {
             'username': 'test_user',
@@ -227,6 +237,74 @@ class AuthenticationTests(APITestCase):
         })
         self.assertEqual(old_login.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_tokens_blacklisted_on_change_password_and_reset_confirm(self):
+        """
+        Verify that all outstanding refresh tokens for a user are blacklisted
+        when changing password or confirming a password reset.
+        """
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+
+        user = User.objects.create_user(
+            username='token_test_user',
+            email='tokentest@example.com',
+            password='InitialPassword123!',
+        )
+
+        # Login twice to generate two outstanding refresh tokens
+        login1 = self.client.post(self.login_url, {'username': 'token_test_user', 'password': 'InitialPassword123!'})
+        login2 = self.client.post(self.login_url, {'username': 'token_test_user', 'password': 'InitialPassword123!'})
+        refresh1 = login1.data['refresh']
+        refresh2 = login2.data['refresh']
+
+        user_outstanding = OutstandingToken.objects.filter(user=user)
+        self.assertGreaterEqual(user_outstanding.count(), 2)
+
+        # Change password
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login1.data['access']}")
+        change_res = self.client.post(self.change_password_url, {
+            'old_password': 'InitialPassword123!',
+            'new_password': 'NewPassword456!',
+            'new_password2': 'NewPassword456!',
+        })
+        self.assertEqual(change_res.status_code, status.HTTP_200_OK)
+
+        # Both tokens must now be blacklisted
+        self.assertEqual(
+            BlacklistedToken.objects.filter(token__user=user).count(),
+            user_outstanding.count(),
+        )
+        self.assertIn(
+            self.client.post(self.refresh_url, {'refresh': refresh1}).status_code,
+            [status.HTTP_400_BAD_REQUEST, status.HTTP_401_UNAUTHORIZED],
+        )
+        self.assertIn(
+            self.client.post(self.refresh_url, {'refresh': refresh2}).status_code,
+            [status.HTTP_400_BAD_REQUEST, status.HTTP_401_UNAUTHORIZED],
+        )
+
+        # Now login with new password and reset password
+        login3 = self.client.post(self.login_url, {'username': 'token_test_user', 'password': 'NewPassword456!'})
+        self.assertEqual(login3.status_code, status.HTTP_200_OK)
+        refresh3 = login3.data['refresh']
+
+        user.refresh_from_db()
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        reset_confirm_res = self.client.post(self.password_reset_confirm_url, {
+            'uid': uid,
+            'token': token,
+            'new_password': 'FinalPassword789!',
+            'new_password2': 'FinalPassword789!',
+        })
+        self.assertEqual(reset_confirm_res.status_code, status.HTTP_200_OK)
+
+        # Refresh with token3 must now also fail
+        self.assertIn(
+            self.client.post(self.refresh_url, {'refresh': refresh3}).status_code,
+            [status.HTTP_400_BAD_REQUEST, status.HTTP_401_UNAUTHORIZED],
+        )
+
     def test_login_throttling_triggers_429(self):
         """Verify that exceeding the login throttle rate returns 429 Too Many Requests."""
         from rest_framework.throttling import SimpleRateThrottle
@@ -235,11 +313,12 @@ class AuthenticationTests(APITestCase):
         from django.conf import settings
 
         new_rates = {**settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'], 'login': '2/minute'}
-        with self.settings(REST_FRAMEWORK={**settings.REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': new_rates}):
-            api_settings.reload()
-            SimpleRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
-            cache.clear()
-            try:
+        try:
+            with self.settings(REST_FRAMEWORK={**settings.REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': new_rates}):
+                api_settings.reload()
+                SimpleRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
+                cache.clear()
+
                 # 1st attempt: 401 (invalid credentials, request counted)
                 res1 = self.client.post(self.login_url, {'username': 'test_throttle', 'password': 'wrong'})
                 self.assertEqual(res1.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -251,7 +330,7 @@ class AuthenticationTests(APITestCase):
                 # 3rd attempt exceeds 2/minute -> 429 Too Many Requests
                 res3 = self.client.post(self.login_url, {'username': 'test_throttle', 'password': 'wrong'})
                 self.assertEqual(res3.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-            finally:
-                cache.clear()
-                api_settings.reload()
-                SimpleRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
+        finally:
+            cache.clear()
+            api_settings.reload()
+            SimpleRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
