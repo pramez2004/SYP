@@ -26,6 +26,13 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+type UnauthorizedCallback = () => void;
+let onUnauthorizedCallback: UnauthorizedCallback | null = null;
+
+export const setOnUnauthorizedCallback = (callback: UnauthorizedCallback | null) => {
+  onUnauthorizedCallback = callback;
+};
+
 let refreshPromise: Promise<string> | null = null;
 
 // Response interceptor — handle 401 and refresh tokens
@@ -66,6 +73,7 @@ apiClient.interceptors.response.use(
           try {
             const refreshToken = await AsyncStorage.getItem('refresh_token');
             if (!refreshToken) {
+              onUnauthorizedCallback?.();
               throw new Error('No refresh token available');
             }
 
@@ -82,6 +90,7 @@ apiClient.interceptors.response.use(
           } catch (refreshError) {
             await AsyncStorage.removeItem('access_token');
             await AsyncStorage.removeItem('refresh_token');
+            onUnauthorizedCallback?.();
             throw refreshError;
           } finally {
             refreshPromise = null;

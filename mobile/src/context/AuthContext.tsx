@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import apiClient from '../services/apiClient';
+import apiClient, { setOnUnauthorizedCallback } from '../services/apiClient';
 import { API_ENDPOINTS } from '../constants/config';
 
 export interface User {
@@ -48,7 +48,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setOnUnauthorizedCallback(() => {
+      setUser(null);
+    });
     loadUser();
+
+    return () => {
+      setOnUnauthorizedCallback(null);
+    };
   }, []);
 
   const loadUser = async () => {
