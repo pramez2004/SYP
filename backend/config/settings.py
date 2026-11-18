@@ -149,8 +149,8 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.ScopedRateThrottle',
     ),
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',
-        'user': '1000/day',
+        'anon': '1000/hour',
+        'user': '5000/hour',
         'login': '5/minute',
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
