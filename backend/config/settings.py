@@ -123,6 +123,20 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # =============================================================================
+# EMAIL SETTINGS
+# =============================================================================
+
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default='django.core.mail.backends.console.EmailBackend',
+)
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default='Chaad Baad <noreply@chaadbaad.com>',
+)
+
+
+# =============================================================================
 # DJANGO REST FRAMEWORK
 # =============================================================================
 

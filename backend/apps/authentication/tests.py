@@ -1,7 +1,11 @@
 from django.urls import reverse
+from django.core import mail
+from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
 from rest_framework import status
 from rest_framework.test import APITestCase
-from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
@@ -13,6 +17,8 @@ class AuthenticationTests(APITestCase):
         self.refresh_url = reverse('token_refresh')
         self.logout_url = reverse('authentication:logout')
         self.change_password_url = reverse('authentication:change-password')
+        self.password_reset_url = reverse('authentication:password-reset')
+        self.password_reset_confirm_url = reverse('authentication:password-reset-confirm')
 
     def test_register_customer_and_seller_success(self):
         """Customer and seller self-registration works."""
@@ -150,3 +156,73 @@ class AuthenticationTests(APITestCase):
         # 7. Refresh with blacklisted token fails
         blacklisted_refresh_res = self.client.post(self.refresh_url, {'refresh': active_refresh})
         self.assertIn(blacklisted_refresh_res.status_code, [status.HTTP_400_BAD_REQUEST, status.HTTP_401_UNAUTHORIZED])
+
+    def test_password_reset_request_and_confirm_flow(self):
+        """
+        Requesting reset sends email with uid and token.
+        Non-existent email also returns 200 (prevents user enumeration).
+        Confirming reset with valid token resets password.
+        """
+        user = User.objects.create_user(
+            username='reset_user',
+            email='resetme@test.com',
+            password='OldPassword123!',
+        )
+
+        # 1. Non-existent email returns 200 without sending email
+        nonexistent_res = self.client.post(self.password_reset_url, {'email': 'nobody@test.com'})
+        self.assertEqual(nonexistent_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # 2. Existing email returns 200 and sends email
+        exist_res = self.client.post(self.password_reset_url, {'email': 'resetme@test.com'})
+        self.assertEqual(exist_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+        self.assertIn('Password Reset', sent_email.subject)
+        self.assertIn('resetme@test.com', sent_email.to)
+
+        # Extract UID and Token using standard generation
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # 3. Confirm with mismatched passwords -> 400
+        mismatch_res = self.client.post(self.password_reset_confirm_url, {
+            'uid': uid,
+            'token': token,
+            'new_password': 'BrandNewPassword123!',
+            'new_password2': 'WrongMatch123!',
+        })
+        self.assertEqual(mismatch_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 4. Confirm with invalid token -> 400
+        bad_token_res = self.client.post(self.password_reset_confirm_url, {
+            'uid': uid,
+            'token': 'invalid-token-123',
+            'new_password': 'BrandNewPassword123!',
+            'new_password2': 'BrandNewPassword123!',
+        })
+        self.assertEqual(bad_token_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 5. Confirm with valid UID and Token -> 200
+        confirm_res = self.client.post(self.password_reset_confirm_url, {
+            'uid': uid,
+            'token': token,
+            'new_password': 'BrandNewPassword123!',
+            'new_password2': 'BrandNewPassword123!',
+        })
+        self.assertEqual(confirm_res.status_code, status.HTTP_200_OK)
+
+        # 6. Verify user can log in with new password
+        login_res = self.client.post(self.login_url, {
+            'username': 'reset_user',
+            'password': 'BrandNewPassword123!',
+        })
+        self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+
+        # 7. Old password no longer works
+        old_login = self.client.post(self.login_url, {
+            'username': 'reset_user',
+            'password': 'OldPassword123!',
+        })
+        self.assertEqual(old_login.status_code, status.HTTP_401_UNAUTHORIZED)

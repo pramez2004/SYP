@@ -166,6 +166,8 @@ python manage.py createsuperuser
 | `GET` | `/api/auth/profile/` | View current user profile | Authenticated |
 | `PATCH` | `/api/auth/profile/` | Update profile information | Authenticated |
 | `POST` | `/api/auth/change-password/` | Change account password | Authenticated |
+| `POST` | `/api/auth/password-reset/` | Request password reset email (prevents enumeration) | Public |
+| `POST` | `/api/auth/password-reset/confirm/` | Confirm password reset using UID and token | Public |
 
 ### Festivals (`/api/festivals/`)
 

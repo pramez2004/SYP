@@ -14,6 +14,8 @@ export const API_ENDPOINTS = {
   PROFILE: '/api/auth/profile/',
   LOGOUT: '/api/auth/logout/',
   CHANGE_PASSWORD: '/api/auth/change-password/',
+  PASSWORD_RESET: '/api/auth/password-reset/',
+  PASSWORD_RESET_CONFIRM: '/api/auth/password-reset/confirm/',
 
   // Festivals
   FESTIVALS: '/api/festivals/',

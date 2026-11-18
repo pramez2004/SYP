@@ -17,6 +17,9 @@ PASSWORD_HASHERS = [
 # Temporary directory for media files during tests
 MEDIA_ROOT = tempfile.mkdtemp()
 
+# In-memory email backend for testing
+EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+
 # High throttle limits so test suites don't get throttled
 REST_FRAMEWORK = {
     **REST_FRAMEWORK,
