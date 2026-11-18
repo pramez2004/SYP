@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
@@ -100,6 +101,13 @@ class LogoutView(APIView):
         )
 
 
+def blacklist_user_tokens(user):
+    """Blacklist all outstanding refresh tokens for the given user."""
+    tokens = OutstandingToken.objects.filter(user=user)
+    for token in tokens:
+        BlacklistedToken.objects.get_or_create(token=token)
+
+
 class ChangePasswordView(APIView):
     """
     POST /api/auth/change-password/
@@ -113,6 +121,7 @@ class ChangePasswordView(APIView):
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        blacklist_user_tokens(request.user)
         return Response(
             {'message': 'Password changed successfully.'},
             status=status.HTTP_200_OK,
@@ -190,6 +199,7 @@ class PasswordResetConfirmView(APIView):
 
         user.set_password(new_password)
         user.save()
+        blacklist_user_tokens(user)
 
         return Response(
             {'message': 'Password has been reset successfully.'},
