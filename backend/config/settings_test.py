@@ -1,4 +1,5 @@
 from .settings import *
+import tempfile
 
 # In-memory SQLite for fast testing without PostgreSQL
 DATABASES = {
@@ -12,6 +13,9 @@ DATABASES = {
 PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.MD5PasswordHasher',
 ]
+
+# Temporary directory for media files during tests
+MEDIA_ROOT = tempfile.mkdtemp()
 
 # High throttle limits so test suites don't get throttled
 REST_FRAMEWORK = {

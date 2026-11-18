@@ -44,6 +44,8 @@ class ShopDetailSerializer(serializers.ModelSerializer):
 class ShopCreateSerializer(serializers.ModelSerializer):
     """For sellers to create and update their shop."""
 
+    is_active = serializers.BooleanField(required=False, default=True)
+
     class Meta:
         model = Shop
         fields = [

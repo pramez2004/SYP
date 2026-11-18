@@ -126,7 +126,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return [permissions.AllowAny()]
 
     def perform_create(self, serializer):
-        shop = self.request.user.shops.filter(is_verified=True, is_active=True).first()
+        shop = Shop.objects.filter(owner=self.request.user, is_verified=True, is_active=True).first()
         if not shop:
             raise PermissionDenied('You must have a verified and active shop to create products.')
         serializer.save(shop=shop)

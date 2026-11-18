@@ -48,7 +48,8 @@ class IsVerifiedShopSeller(BasePermission):
     def has_permission(self, request, view):
         if not (request.user and request.user.is_authenticated and request.user.role == 'seller'):
             return False
-        return request.user.shops.filter(is_verified=True, is_active=True).exists()
+        from apps.marketplace.models import Shop
+        return Shop.objects.filter(owner=request.user, is_verified=True, is_active=True).exists()
 
 
 class IsShopOwner(BasePermission):
