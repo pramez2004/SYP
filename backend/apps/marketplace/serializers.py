@@ -41,6 +41,18 @@ class ShopDetailSerializer(serializers.ModelSerializer):
         return ProductSerializer(products, many=True, context=self.context).data
 
 
+class ShopCreateSerializer(serializers.ModelSerializer):
+    """For sellers to create and update their shop."""
+
+    class Meta:
+        model = Shop
+        fields = [
+            'id', 'name', 'description', 'phone', 'city', 'address',
+            'logo', 'banner', 'is_active', 'is_verified', 'created_at',
+        ]
+        read_only_fields = ['id', 'is_verified', 'created_at']
+
+
 class ProductSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.name', read_only=True)
     shop_city = serializers.CharField(source='shop.city', read_only=True)
@@ -70,10 +82,3 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             'price', 'discount_price', 'unit', 'image', 'stock',
             'is_available', 'category',
         ]
-
-    def validate(self, attrs):
-        # Ensure the shop belongs to the requesting user
-        request = self.context.get('request')
-        if request and not request.user.shops.exists():
-            raise serializers.ValidationError('You must own a shop to create products.')
-        return attrs

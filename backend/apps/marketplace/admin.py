@@ -12,7 +12,12 @@ class CategoryAdmin(admin.ModelAdmin):
 class ShopAdmin(admin.ModelAdmin):
     list_display = ('name', 'owner', 'city', 'is_verified', 'is_active', 'rating')
     list_filter = ('city', 'is_verified', 'is_active')
+    list_editable = ('is_verified', 'is_active')
     search_fields = ('name', 'owner__username', 'city')
+    fields = (
+        'owner', 'name', 'description', 'phone', 'city', 'address',
+        'logo', 'banner', 'is_verified', 'is_active', 'rating', 'total_reviews',
+    )
 
 
 @admin.register(Product)

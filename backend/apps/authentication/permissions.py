@@ -40,6 +40,17 @@ class IsAdminUser(BasePermission):
         )
 
 
+class IsVerifiedShopSeller(BasePermission):
+    """Allow access only to sellers with an active, verified shop."""
+
+    message = 'Only sellers with an active, verified shop can perform this action.'
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated and request.user.role == 'seller'):
+            return False
+        return request.user.shops.filter(is_verified=True, is_active=True).exists()
+
+
 class IsShopOwner(BasePermission):
     """
     Object-level permission: allow only if the requesting user
@@ -50,8 +61,10 @@ class IsShopOwner(BasePermission):
     message = 'You can only manage your own shop resources.'
 
     def has_object_permission(self, request, view, obj):
-        if hasattr(obj, 'shop'):
-            return obj.shop.owner == request.user
+        if request.user.is_staff or getattr(request.user, 'role', '') == 'admin':
+            return True
         if hasattr(obj, 'owner'):
             return obj.owner == request.user
+        if hasattr(obj, 'shop'):
+            return obj.shop.owner == request.user
         return False

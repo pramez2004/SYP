@@ -1,16 +1,37 @@
-from rest_framework import viewsets, generics, permissions, status
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
-from django.db.models import Sum, F
+from django.db.models import F
+from django.utils import timezone
 
 from .models import Order, OrderItem, CartItem
+from apps.marketplace.models import Product
 from .serializers import (
     OrderListSerializer, OrderDetailSerializer,
     CartItemSerializer, CartItemCreateSerializer,
     CheckoutSerializer,
 )
 from apps.authentication.permissions import IsSeller
+
+
+SELLER_ALLOWED_TRANSITIONS = {
+    Order.Status.PLACED: [Order.Status.CONFIRMED, Order.Status.CANCELLED],
+    Order.Status.CONFIRMED: [Order.Status.PACKED, Order.Status.CANCELLED],
+    Order.Status.PACKED: [Order.Status.OUT_FOR_DELIVERY],
+    Order.Status.OUT_FOR_DELIVERY: [Order.Status.DELIVERED],
+    Order.Status.DELIVERED: [],
+    Order.Status.CANCELLED: [],
+}
+
+
+def restore_order_stock(order):
+    """Restore stock for all items in an order."""
+    for item in order.items.select_related('product').all():
+        if item.product_id:
+            Product.objects.filter(id=item.product_id).update(
+                stock=F('stock') + item.quantity
+            )
 
 
 class CartViewSet(viewsets.GenericViewSet):
@@ -31,8 +52,6 @@ class CartViewSet(viewsets.GenericViewSet):
         """GET — list all cart items with computed totals."""
         items = self.get_queryset()
         serializer = CartItemSerializer(items, many=True, context={'request': request})
-
-        # Compute cart total
         cart_total = sum(item.line_total for item in items)
 
         return Response({
@@ -74,40 +93,94 @@ class CartViewSet(viewsets.GenericViewSet):
         """
         POST /api/orders/cart/checkout/
         Convert cart items into order(s). Groups items by shop.
+        Locks products, validates stock, availability, shop status, and delivery city.
         """
         serializer = CheckoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        cart_items = CartItem.objects.filter(user=request.user).select_related('product', 'product__shop')
-        if not cart_items.exists():
-            return Response(
-                {'detail': 'Your cart is empty.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Group cart items by shop
-        shops = {}
-        for item in cart_items:
-            shop = item.product.shop
-            if shop.id not in shops:
-                shops[shop.id] = {'shop': shop, 'items': []}
-            shops[shop.id]['items'].append(item)
-
-        created_orders = []
+        delivery_city = serializer.validated_data['delivery_city'].strip()
 
         with transaction.atomic():
+            cart_items = list(
+                CartItem.objects.filter(user=request.user)
+                .select_related('product', 'product__shop')
+            )
+            if not cart_items:
+                return Response(
+                    {'detail': 'Your cart is empty.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Lock products with select_for_update()
+            product_ids = [item.product_id for item in cart_items]
+            locked_products = {
+                p.id: p
+                for p in Product.objects.select_for_update()
+                .select_related('shop')
+                .filter(id__in=product_ids)
+            }
+
+            # Validate each cart item against product and shop rules
+            for item in cart_items:
+                product = locked_products.get(item.product_id)
+                if not product:
+                    return Response(
+                        {'detail': f'Product "{item.product.name_en}" is no longer available.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                shop = product.shop
+                if not shop.is_active or not shop.is_verified:
+                    return Response(
+                        {'detail': f'Shop "{shop.name}" is currently inactive or not verified.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if delivery_city.lower() != shop.city.strip().lower():
+                    return Response(
+                        {
+                            'detail': (
+                                f'Delivery city "{delivery_city}" does not match '
+                                f'shop city "{shop.city}" for product "{product.name_en}".'
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if not product.is_available:
+                    return Response(
+                        {'detail': f'Product "{product.name_en}" is currently unavailable.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if item.quantity > product.stock:
+                    return Response(
+                        {
+                            'detail': (
+                                f'Insufficient stock for "{product.name_en}". '
+                                f'Requested: {item.quantity}, available: {product.stock}.'
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Group cart items by shop
+            shops = {}
+            for item in cart_items:
+                product = locked_products[item.product_id]
+                shop = product.shop
+                if shop.id not in shops:
+                    shops[shop.id] = {'shop': shop, 'items': []}
+                shops[shop.id]['items'].append((item, product))
+
+            created_orders = []
             for shop_data in shops.values():
                 shop = shop_data['shop']
-                items = shop_data['items']
+                items_with_products = shop_data['items']
 
-                subtotal = sum(i.line_total for i in items)
-                delivery_fee = 0  # Free delivery for now
+                subtotal = sum(product.effective_price * item.quantity for item, product in items_with_products)
+                delivery_fee = 0  # Free delivery
                 total = subtotal + delivery_fee
 
                 order = Order.objects.create(
                     customer=request.user,
                     shop=shop,
-                    delivery_city=serializer.validated_data['delivery_city'],
+                    delivery_city=delivery_city,
                     delivery_address=serializer.validated_data['delivery_address'],
                     delivery_phone=serializer.validated_data['delivery_phone'],
                     customer_note=serializer.validated_data.get('customer_note', ''),
@@ -116,24 +189,24 @@ class CartViewSet(viewsets.GenericViewSet):
                     total=total,
                 )
 
-                for cart_item in items:
+                for item, product in items_with_products:
                     OrderItem.objects.create(
                         order=order,
-                        product=cart_item.product,
-                        product_name=cart_item.product.name_en,
-                        unit_price=cart_item.product.effective_price,
-                        quantity=cart_item.quantity,
-                        line_total=cart_item.line_total,
+                        product=product,
+                        product_name=product.name_en,
+                        unit_price=product.effective_price,
+                        quantity=item.quantity,
+                        line_total=product.effective_price * item.quantity,
                     )
 
-                    # Decrease stock
-                    cart_item.product.stock = max(0, cart_item.product.stock - cart_item.quantity)
-                    cart_item.product.save()
+                    # Deduct stock safely (never clamped silently to 0)
+                    product.stock -= item.quantity
+                    product.save(update_fields=['stock'])
 
                 created_orders.append(order)
 
-            # Clear the cart
-            cart_items.delete()
+            # Clear cart after successful checkout
+            CartItem.objects.filter(user=request.user).delete()
 
         return Response(
             {
@@ -146,18 +219,25 @@ class CartViewSet(viewsets.GenericViewSet):
 
 class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    GET /api/orders/         — List user's orders
-    GET /api/orders/{id}/    — Order detail
+    GET  /api/orders/                — List user's orders
+    GET  /api/orders/{id}/           — Order detail
+    POST /api/orders/{id}/update_status/ — Seller updates status (strict progression / cancel)
+    POST /api/orders/{id}/cancel/        — Customer cancels order while status is 'placed'
     """
 
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
+        if not user.is_authenticated:
+            return Order.objects.none()
+        if getattr(user, 'role', '') == 'admin' or user.is_staff:
+            return Order.objects.all().select_related('shop', 'customer')
+        if self.action in ('update_status', 'cancel'):
+            # Return all orders so detail-level checks can return 403 Forbidden instead of 404
+            return Order.objects.all().select_related('shop', 'customer')
         if user.is_seller:
-            # Sellers see orders for their shops
             return Order.objects.filter(shop__owner=user).select_related('shop', 'customer')
-        # Customers see their own orders
         return Order.objects.filter(customer=user).select_related('shop')
 
     def get_serializer_class(self):
@@ -169,7 +249,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     def update_status(self, request, pk=None):
         """
         POST /api/orders/{id}/update_status/
-        Seller can update order status.
+        Seller can update order status following strict forward flow or cancel from placed/confirmed.
         """
         order = self.get_object()
         if order.shop.owner != request.user:
@@ -179,21 +259,58 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         new_status = request.data.get('status')
-        if new_status not in dict(Order.Status.choices):
+        allowed_statuses = SELLER_ALLOWED_TRANSITIONS.get(order.status, [])
+
+        if not new_status or new_status not in allowed_statuses:
             return Response(
-                {'detail': f'Invalid status. Choose from: {list(dict(Order.Status.choices).keys())}'},
+                {
+                    'detail': f'Cannot transition order from "{order.status}" to "{new_status}".',
+                    'allowed_transitions': allowed_statuses,
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        order.status = new_status
+        with transaction.atomic():
+            order.status = new_status
 
-        # Set timestamps
-        from django.utils import timezone
-        if new_status == Order.Status.CONFIRMED:
-            order.confirmed_at = timezone.now()
-        elif new_status == Order.Status.DELIVERED:
-            order.delivered_at = timezone.now()
-            order.is_paid = True  # Cash on delivery — paid when delivered
+            if new_status == Order.Status.CONFIRMED:
+                order.confirmed_at = timezone.now()
+            elif new_status == Order.Status.DELIVERED:
+                order.delivered_at = timezone.now()
+                order.is_paid = True
+            elif new_status == Order.Status.CANCELLED:
+                restore_order_stock(order)
 
-        order.save()
+            order.save()
+
+        return Response(OrderDetailSerializer(order).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def cancel(self, request, pk=None):
+        """
+        POST /api/orders/{id}/cancel/
+        Customer can cancel their own order only while it is in 'placed' status.
+        Cancelling restores product stock.
+        """
+        order = self.get_object()
+        if order.customer != request.user:
+            return Response(
+                {'detail': 'You can only cancel your own orders.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if order.status != Order.Status.PLACED:
+            return Response(
+                {
+                    'detail': f'Cannot cancel order with status "{order.status}". Only orders with status "placed" can be cancelled.',
+                    'allowed_transitions': [],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            order.status = Order.Status.CANCELLED
+            order.save(update_fields=['status', 'updated_at'])
+            restore_order_stock(order)
+
         return Response(OrderDetailSerializer(order).data)

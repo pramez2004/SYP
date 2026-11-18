@@ -1,6 +1,8 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model
@@ -8,6 +10,16 @@ from django.contrib.auth import get_user_model
 from .serializers import RegisterSerializer, UserProfileSerializer, ChangePasswordSerializer
 
 User = get_user_model()
+
+
+class LoginView(TokenObtainPairView):
+    """
+    POST /api/token/
+    Obtain JWT access and refresh token pair with rate limiting.
+    """
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
 
 class RegisterView(generics.CreateAPIView):

@@ -50,6 +50,8 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 
 class CartItemCreateSerializer(serializers.ModelSerializer):
+    quantity = serializers.IntegerField(min_value=1, default=1)
+
     class Meta:
         model = CartItem
         fields = ['product', 'quantity']
