@@ -9,6 +9,7 @@ import { useLanguage } from '../context/LanguageContext';
 // Screens
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import HomeScreen from '../screens/HomeScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import MarketplaceScreen from '../screens/MarketplaceScreen';
@@ -144,6 +145,11 @@ export default function AppNavigator() {
           <Stack.Screen
             name="Register"
             component={RegisterScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
             options={{ headerShown: false }}
           />
         </>

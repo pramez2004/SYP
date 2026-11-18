@@ -100,6 +100,13 @@ export default function LoginScreen({ navigation }: any) {
           </View>
 
           <TouchableOpacity
+            style={styles.forgotPasswordLink}
+            onPress={() => navigation.navigate('ForgotPassword')}
+          >
+            <Text style={styles.forgotPasswordText}>{t.auth.forgotPassword}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.loginBtn, loading && styles.btnDisabled]}
             onPress={handleLogin}
             disabled={loading}
@@ -212,6 +219,16 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.bodyLarge,
     color: COLORS.textPrimary,
     backgroundColor: COLORS.surfaceElevated,
+  },
+  forgotPasswordLink: {
+    alignSelf: 'flex-end',
+    marginBottom: SPACING.md,
+    marginTop: -SPACING.xs,
+  },
+  forgotPasswordText: {
+    color: COLORS.primary,
+    fontSize: FONT_SIZES.caption,
+    fontWeight: '500',
   },
   loginBtn: {
     backgroundColor: COLORS.primary,
